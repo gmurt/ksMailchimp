@@ -4,7 +4,7 @@
 *                                                                              *
 *  https://github.com/gmurt/ksMailChimp                                        *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2020 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -133,14 +133,9 @@ type
   public
     constructor Create(AApiKey: string);
     destructor Destroy; override;
-
     procedure AddContact(AAudienceID: string; AContact: IMailChimpContact; AOnPost: TPostEvent);
     procedure GetAudienceList(AAudienceList: TMailChimpAudienceList);
-    //property Lists: TMailChimpLists read FLists;
   end;
-
-
-
 
 function CreateMailChimp(AApiKey: string): IksMailChimp;
 begin
@@ -248,7 +243,6 @@ begin
   end;
 end;
 
-
 procedure TksMailChimp.GetAudienceList(AAudienceList: TMailChimpAudienceList);
 var
   AData: string;
@@ -298,7 +292,6 @@ begin
   FHttp.Free;
   inherited;
 end;
-
 
 { TMailChimpAudience }
 
@@ -381,7 +374,6 @@ begin
   AArray := TJsonObject.Parse(AJson) as TJSONArray;
   try
     for AList in AArray do
-
       AddAudience.LoadFromJson(AList);
   finally
     AArray.Free;
