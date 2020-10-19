@@ -1,4 +1,4 @@
-# ksMAilChimp
+# ksMailChimp
 Delphi interface for MailChimp
 
 This only has some basic functionality for connecting to the MailChimp API, returning a list of "Audience" lists and a method for adding contacts.  This is all I've needed for my project currently but if you need any extra functionality let me knonw.
