@@ -62,6 +62,7 @@ type
 
   TMailChimpContactList = class(TList<IMailChimpContact>)
   public
+    procedure UploadJson(AJson: TJSONObject);
     procedure AddMember(AFirstname, ASurname, AEmail: string);
   end;
 
@@ -75,6 +76,7 @@ type
   IksMailChimp = interface
     ['{F0CB2B37-BF05-44A4-81E4-AAD31190DF25}']
     procedure AddContact(AAudienceID: string; AContact: IMailChimpContact; AOnPost: TPostEvent);
+    procedure AddContacts(AAudienceID: string; AContacts: TMailChimpContactList);
     procedure GetAudienceList(AAudienceList: TMailChimpAudienceList);
   end;
 
@@ -134,6 +136,7 @@ type
     constructor Create(AApiKey: string);
     destructor Destroy; override;
     procedure AddContact(AAudienceID: string; AContact: IMailChimpContact; AOnPost: TPostEvent);
+    procedure AddContacts(AAudienceID: string; AContacts: TMailChimpContactList);
     procedure GetAudienceList(AAudienceList: TMailChimpAudienceList);
   end;
 
@@ -147,7 +150,7 @@ begin
   Result := TMailChimpContact.Create;
   Result.Firstname := AFirstname;
   Result.LastName := ALastname;
-  Result.Email := AEmail; 
+  Result.Email := Trim(LowerCase(AEmail));
 end;
 
 function TMailChimpContact.GetEmail: string;
@@ -182,7 +185,7 @@ end;
 
 procedure TMailChimpContact.UploadJson(AJson: TJSONObject);
 begin
-  AJson.S['email_address'] := FEmail;
+  AJson.S['email_address'] := Email.ToLower;
   AJson.S['status'] := 'subscribed';
   AJson.O['merge_fields'].S['FNAME'] := FFirstname;
   AJson.O['merge_fields'].S['LNAME'] := FLastname;
@@ -206,7 +209,7 @@ var
   AStream: TStringStream;
   AResponse: IHTTPResponse;
 begin
-  AStream := TStringStream.Create(AData);
+  AStream := TStringStream.Create(AData, TEncoding.UTF8);
   try
     FHttp.CustomHeaders['Authorization'] := 'Basic '+ TNetEncoding.Base64.Encode('apiUser:'+FApiKey);
     AResponse := FHttp.Post('https://'+FDatacenter+'.api.mailchimp.com/3.0/'+AResource, AStream);
@@ -231,10 +234,13 @@ begin
     AArray.Add(AUploadJson);
     AResult := TJsonObject.Parse(Post('lists/'+AAudienceID, AJson.ToJSON)) as TJsonObject;
     try
-      if AResult.I['error_count'] > 0 then
-        AOnPost(Self, AContact.Email, False, AResult.A['errors'][0].S['error'])
-      else
-        AOnPost(Self, AContact.Email, True, '');
+      if Assigned(AOnPost)  then
+      begin
+        if AResult.I['error_count'] > 0 then
+          AOnPost(Self, AContact.Email, False, AResult.A['errors'][0].S['error'])
+        else
+          AOnPost(Self, AContact.Email, True, '');
+      end;
     finally
       AResult.Free;
     end;
@@ -262,6 +268,7 @@ begin
   end;
 end;
 
+
 { TMailChimp }
 
 function StrBefore(ASubStr, AStr: string): string;
@@ -278,6 +285,7 @@ begin
     Result := Copy(AStr, Pos(ASubStr, AStr)+1, Length(AStr));
 end;
 
+
 constructor TksMailChimp.Create(AApiKey: string);
 begin
   FHttp := TNetHTTPClient.Create(nil);
@@ -291,6 +299,52 @@ destructor TksMailChimp.Destroy;
 begin
   FHttp.Free;
   inherited;
+end;
+
+procedure TksMailChimp.AddContacts(AAudienceID: string; AContacts: TMailChimpContactList);
+var
+  AJson: TJSONObject;
+  AArray: TJsonArray;
+  AUploadJson: TJsonObject;
+  AResult: TJsonObject;
+  AUploadContacts: TMailChimpContactList;
+begin
+  AUploadContacts := TMailChimpContactList.Create;
+  try
+    while AContacts.Count > 0 do
+    begin
+      AUploadContacts.Add(AContacts.ExtractAt(0));
+      if (AUploadContacts.Count >= 500) or (AContacts.Count = 0) then
+      begin
+        AJson := TJsonObject.Create;
+        AUploadContacts.UploadJson(AJson);
+        AResult := TJsonObject.Parse(Post('lists/'+AAudienceID, AJson.ToJSON)) as TJsonObject;
+        try
+          AUploadContacts.Clear;
+        finally
+          AResult.Free;
+          AJson.Free;
+        end;
+      end;
+    end;
+  finally
+    AUploadContacts.Free;
+  end;
+end;
+
+procedure TMailChimpContactList.UploadJson(AJson: TJSONObject);
+var
+  AArray: TJsonArray;
+  AObj: TJsonObject;
+  ACont: IMailChimpContact;
+begin
+  AArray := AJson.A['members'];
+  for ACont in Self do
+  begin
+    AObj := TJsonObject.Create;
+    ACont.UploadJson(AObj);
+    AArray.Add(AObj);
+  end;
 end;
 
 { TMailChimpAudience }
